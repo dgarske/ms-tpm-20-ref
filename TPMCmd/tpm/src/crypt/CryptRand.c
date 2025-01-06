@@ -38,6 +38,111 @@
 
 #include "Tpm.h"
 
+#ifdef USE_WOLFSSL_DRBG
+#ifndef WOLFSSL_USER_SETTINGS
+#include <wolfssl/options.h>
+#endif
+#include <wolfssl/wolfcrypt/random.h>
+
+LIB_EXPORT TPM_RC DRBG_Uninstantiate(
+    DRBG_STATE* drbgState  // IN/OUT: working state to erase
+)
+{
+    wc_FreeRng(drbgState);
+    return TPM_RC_SUCCESS;
+}
+
+
+LIB_EXPORT BOOL DRBG_Instantiate(
+    DRBG_STATE* drbgState,       // OUT: the instantiated value
+    UINT16      pSize,           // IN: Size of personalization string
+    BYTE*       personalization  // IN: The personalization string
+)
+{
+    if (wc_InitRng(drbgState) == 0) {
+        return TRUE;
+    }
+    return FALSE;
+}
+
+LIB_EXPORT UINT16 DRBG_Generate(
+    RAND_STATE* state,
+    BYTE*       random,     // OUT: buffer to receive the random values
+    UINT16      randomSize  // IN: the number of bytes to generate
+)
+{
+    int rc;
+
+    if (state == NULL)
+        state = (RAND_STATE*)&drbgDefault;
+    if (random == NULL)
+        return 0;
+
+
+    rc = wc_RNG_GenerateBlock(&state->drbg, random, randomSize);
+    if (rc == 0) {
+        return randomSize;
+    }
+    return 0;
+}
+
+LIB_EXPORT BOOL CryptRandInit(void)
+{
+    return TRUE;
+}
+
+LIB_EXPORT BOOL CryptRandStartup(void)
+{
+    return DRBG_Instantiate(&drbgDefault, 0, NULL);
+}
+
+LIB_EXPORT TPM_RC DRBG_InstantiateSeeded(
+    DRBG_STATE*  drbgState,  // IN/OUT: buffer to hold the state
+    const TPM2B* seed,       // IN: the seed to use
+    const TPM2B* purpose,    // IN: a label for the generation process.
+    const TPM2B* name,       // IN: name of the object
+    const TPM2B* additional  // IN: additional data
+)
+{
+    if (wc_InitRngNonce(drbgState, seed->buffer, seed->size) == 0) {
+        return TPM_RC_SUCCESS;
+    }
+    return TPM_RC_FAILURE;
+}
+
+LIB_EXPORT void DRBG_AdditionalData(DRBG_STATE* drbgState,  // IN:OUT state to update
+                                    TPM2B* additionalData  // IN: value to incorporate
+)
+{
+}
+
+
+//*** DRBG_InstantiateSeededKdf()
+// This function is used to instantiate a KDF-based RNG. This is used for derivations.
+// This function always returns TRUE.
+LIB_EXPORT BOOL DRBG_InstantiateSeededKdf(
+    KDF_STATE*   state,    // OUT: buffer to hold the state
+    TPM_ALG_ID   hashAlg,  // IN: hash algorithm
+    TPM_ALG_ID   kdf,      // IN: the KDF to use
+    TPM2B*       seed,     // IN: the seed to use
+    const TPM2B* label,    // IN: a label for the generation process.
+    TPM2B*       context,  // IN: the context value
+    UINT32       limit     // IN: Maximum number of bits from the KDF
+)
+{
+    return TRUE;
+}
+
+LIB_EXPORT UINT16 CryptRandomGenerate(UINT16 randomSize, BYTE* buffer)
+{
+    return DRBG_Generate((RAND_STATE*)&drbgDefault, buffer, randomSize);
+}
+
+LIB_EXPORT TPM_RC CryptRandomStir(UINT16 additionalDataSize, BYTE* additionalData)
+{
+    return TPM_RC_SUCCESS;
+}
+#else
 // Pull in the test vector definitions and define the space
 #include "PRNG_TestVectors.h"
 
@@ -904,3 +1009,4 @@ LIB_EXPORT TPM_RC DRBG_Uninstantiate(
     memset(drbgState, 0, sizeof(DRBG_STATE));
     return TPM_RC_SUCCESS;
 }
+#endif

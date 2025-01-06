@@ -18,7 +18,7 @@ need to manually copy them over from OpenSSL's `include/crypt` folder.
 
 ## Cross-Compiling for Big-Endian Architectures
 
-NOTE: These intructions are not optimized, they are the notes of one successful
+NOTE: These instructions are not optimized, they are the notes of one successful
 attempt at cross-compiling for ppc64.
 
 REMINDER: Set `BIG_ENDIAN_TPM` to `YES` in `TpmProfile_Common.h`!
@@ -78,3 +78,28 @@ Problems you may run into:
 
 * You may need to add the path to the PowerPC64 OpenSSL lib directory to `LD_LIBRARY_PATH`.
 * You may need to add a symlink to your PowerPC64 libc at /lib64/ld64.so.1
+
+## Building with wolfSSL
+
+Note that wolfSSL make install uses the package: `libtools` in additions to the previous autoconf packages listed.
+
+For building with wolfSSL on Linux download the wolfSSL (https://www.wolfssl.com/downloads) and build wolfSSL using the following commands:
+
+```
+./configure --enable-aesctr --disable-oldnames CPPFLAGS="-DWOLFSSL_SP_INT_NEGATIVE -DWOLFSSL_AES_DIRECT -DWOLFSSL_PUBLIC_MP -DWOLFSSL_PUBLIC_ECC_ADD_DBL" --enable-keygen
+make
+make install
+```
+
+For pkg-config to find the wolfSSL .pc file the PKG_CONFIG_PATH may need updated:
+
+```
+export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig/
+```
+
+Then build ms-tpm-20-ref linking to the install wolfSSL library using:
+
+```
+./configure --with-wolfssl
+make
+```

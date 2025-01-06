@@ -897,6 +897,7 @@ void CryptParameterEncryption(
                             nonceCaller,
                             (UINT32)cipherSize,
                             buffer);
+#if ALG_AES
     else
         ParmEncryptSym(session->symmetric.algorithm,
                        session->authHashAlg,
@@ -906,6 +907,7 @@ void CryptParameterEncryption(
                        &(session->nonceTPM.b),
                        (UINT32)cipherSize,
                        buffer);
+#endif
     return;
 }
 

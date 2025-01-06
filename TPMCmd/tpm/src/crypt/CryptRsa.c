@@ -8,9 +8,12 @@
 // Need this define to get the 'private' defines for this function
 #define CRYPT_RSA_C
 #include "Tpm.h"
-#include "TpmMath_Util_fp.h"
 
 #if ALG_RSA
+
+#ifdef NO_PRIME_GEN
+#include "TpmRsaKey.h"
+#endif
 
 //**  Obligatory Initialization Functions
 
@@ -442,6 +445,7 @@ Exit:
     return retVal;
 }
 
+#if ALG_RSAESS
 //*** PKCS1v1_5Encode()
 // This function performs the encoding for RSAES-PKCS1-V1_5-ENCRYPT as defined in
 // PKCS#1V2.1
@@ -518,7 +522,9 @@ static TPM_RC RSAES_Decode(TPM2B* message,  // OUT: the recovered message
     memcpy(message->buffer, &coded->buffer[pSize], coded->size - pSize);
     return TPM_RC_SUCCESS;
 }
+#endif //ALG_RSAES
 
+#if ALG_RSAPSS
 //*** CryptRsaPssSaltSize()
 // This function computes the salt size used in PSS. It is broken out so that
 // the X509 code can get the same value that is used by the encoding function in this
@@ -721,6 +727,7 @@ static TPM_RC PssDecode(
 Exit:
     return retVal;
 }
+#endif //ALG_RSAPSS
 
 //*** MakeDerTag()
 // Construct the DER value that is used in RSASSA
@@ -1038,9 +1045,11 @@ LIB_EXPORT TPM_RC CryptRsaEncrypt(
             // the modulus. If it is, then RSAEP() will catch it.
         }
         break;
+#if ALG_RSAES
         case TPM_ALG_RSAES:
             retVal = RSAES_PKCS1v1_5Encode(&cOut->b, dIn, rand);
             break;
+#endif
         case TPM_ALG_OAEP:
             retVal =
                 OaepEncode(&cOut->b, scheme->details.oaep.hashAlg, label, dIn, rand);
@@ -1102,9 +1111,11 @@ LIB_EXPORT TPM_RC CryptRsaDecrypt(
                     return TPM_RC_VALUE;
                 MemoryCopy2B(dOut, cIn, dOut->size);
                 break;
+#if ALG_RSAESS
             case TPM_ALG_RSAES:
                 retVal = RSAES_Decode(dOut, cIn);
                 break;
+#endif
             case TPM_ALG_OAEP:
                 retVal = OaepDecode(dOut, scheme->details.oaep.hashAlg, label, cIn);
                 break;

@@ -44,6 +44,10 @@
 
 #define HASH_ALIGNMENT RADIX_BYTES
 
+#ifndef WOLFSSL_USER_SETTINGS
+#  define WOLFSSL_USER_SETTINGS
+#endif
+
 #if ALG_SHA384 || ALG_SHA512
 #  define WOLFSSL_SHA512
 #endif
@@ -52,10 +56,6 @@
 #  undef ALG_SM3_256
 #  define ALG_SM3_256 ALG_NO
 //#error "SM3 is not available"
-#endif
-
-#ifndef WOLFSSL_USER_SETTINGS
-    #include <wolfssl/options.h>
 #endif
 
 #include <wolfssl/wolfcrypt/sha.h>

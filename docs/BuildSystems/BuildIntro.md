@@ -14,7 +14,7 @@ A compatible crypto library is required in order to build the TPM simulator.
 | -------------- | ------------------------- |
 | OpenSSL 1.x    | `1.1.1n` (March 2022)     |
 | OpenSSL 3.x    | `3.0.10` (August 2023)    |
-| WolfSSL        | Not supported             |
+| WolfSSL        | `5.6.2` (July 2023)       |
 
 Bindings for WolfSSL are provided on a best-effort basis, but WolfSSL is not
 currently tested or supported by any of the build documentation.

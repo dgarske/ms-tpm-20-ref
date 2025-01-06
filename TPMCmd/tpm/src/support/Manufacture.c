@@ -60,8 +60,10 @@ LIB_EXPORT int TPM_Manufacture(
     // initialize NV
     NvManufacture();
 
+#ifndef USE_WOLFSSL_DRBG
     // Clear the magic value in the DRBG state
     go.drbgState.magic = 0;
+#endif
 
     CryptStartup(SU_RESET);
 

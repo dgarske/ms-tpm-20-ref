@@ -1,3 +1,37 @@
+/* Microsoft Reference Implementation for TPM 2.0
+ *
+ *  The copyright in this software is being made available under the BSD License,
+ *  included below. This software may be subject to other third party and
+ *  contributor rights, including patent rights, and no such rights are granted
+ *  under this license.
+ *
+ *  Copyright (c) Microsoft Corporation
+ *
+ *  All rights reserved.
+ *
+ *  BSD License
+ *
+ *  Redistribution and use in source and binary forms, with or without modification,
+ *  are permitted provided that the following conditions are met:
+ *
+ *  Redistributions of source code must retain the above copyright notice, this list
+ *  of conditions and the following disclaimer.
+ *
+ *  Redistributions in binary form must reproduce the above copyright notice, this
+ *  list of conditions and the following disclaimer in the documentation and/or other
+ *  materials provided with the distribution.
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS ""AS IS""
+ *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ *  DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ *  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ *  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ *  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ *  ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ *  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ *  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
 
 //** Introduction
 //
@@ -20,7 +54,7 @@
 
 #ifdef MATH_LIB_WOLF
 #  include "BnConvert_fp.h"
-#  include "Wolf/BnToWolfMath_fp.h"
+#  include "TpmToWolfMath_fp.h"
 
 #  define WOLF_HALF_RADIX (RADIX_BITS == 64 && !defined(FP_64BIT))
 
@@ -71,8 +105,8 @@ void BnToWolf(mp_int* toInit, bigConst initializer)
         for(i = 0; i < initializer->size; i++)
         {
 #  if WOLF_HALF_RADIX
-            toInit->dp[2 * i]     = (mp_digit)initializer->d[i];
-            toInit->dp[2 * i + 1] = (mp_digit)(initializer->d[i] >> 32);
+            toInit->dp[2 * i]     = (fp_digit)initializer->d[i];
+            toInit->dp[2 * i + 1] = (fp_digit)(initializer->d[i] >> 32);
 #  else
             toInit->dp[i] = initializer->d[i];
 #  endif
@@ -101,7 +135,7 @@ mp_int* MpInitialize(mp_int* toInit)
 //** MathLibraryCompatibililtyCheck()
 // This function is only used during development to make sure that the library
 // that is being referenced is using the same size of data structures as the TPM.
-BOOL BnMathLibraryCompatibilityCheck(void)
+BOOL MathLibraryCompatibilityCheck(void)
 {
     BN_VAR(tpmTemp, 64 * 8);  // allocate some space for a test value
     crypt_uword_t i;
@@ -126,12 +160,12 @@ BOOL BnMathLibraryCompatibilityCheck(void)
     // Convert the test TPM2B to a bigNum
     BnFrom2B(tpmTemp, &test.b);
     MP_INITIALIZED(wolfTemp, tpmTemp);
-    (void)(wolfTemp);  // compiler warning
+    (wolfTemp);  // compiler warning
     // Make sure the values are consistent
-    VERIFY(wolfTemp->used * sizeof(mp_digit)
+    VERIFY(wolfTemp->used * sizeof(fp_digit)
            == (int)tpmTemp->size * sizeof(crypt_uword_t));
     for(i = 0; i < tpmTemp->size; i++)
-        GOTO_ERROR_UNLESS(((crypt_uword_t*)wolfTemp->dp)[i] == tpmTemp->d[i]);
+        VERIFY(((crypt_uword_t*)wolfTemp->dp)[i] == tpmTemp->d[i]);
     return 1;
 Error:
     return 0;
@@ -224,7 +258,7 @@ LIB_EXPORT BOOL BnDiv(
     return OK;
 }
 
-#  if ALG_RSA && !defined(NO_PRIME_GEN)
+#  if ALG_RSA
 //*** BnGcd()
 // Get the greatest common divisor of two numbers
 LIB_EXPORT BOOL BnGcd(bigNum   gcd,      // OUT: the common divisor
@@ -246,7 +280,6 @@ LIB_EXPORT BOOL BnGcd(bigNum   gcd,      // OUT: the common divisor
     WOLF_LEAVE();
     return OK;
 }
-#endif
 
 //***BnModExp()
 // Do modular exponentiation using bigNum values. The conversion from a mp_int to
@@ -272,9 +305,7 @@ LIB_EXPORT BOOL BnModExp(bigNum   result,    // OUT: the result
     WOLF_LEAVE();
     return OK;
 }
-#  endif  // TPM_ALG_RSA
 
-#if ALG_RSA || ALG_ECC
 //*** BnModInverse()
 // Modular multiplicative inverse
 LIB_EXPORT BOOL BnModInverse(bigNum result, bigConst number, bigConst modulus)
@@ -294,6 +325,7 @@ LIB_EXPORT BOOL BnModInverse(bigNum result, bigConst number, bigConst modulus)
     WOLF_LEAVE();
     return OK;
 }
+#  endif  // TPM_ALG_RSA
 
 #  if ALG_ECC
 
@@ -344,17 +376,17 @@ static ecc_point* EcPointInitialized(pointConst initializer)
 LIB_EXPORT BOOL BnEccModMult(bigPoint   R,  // OUT: computed point
                              pointConst S,  // IN: point to multiply by 'd' (optional)
                              bigConst   d,  // IN: scalar for [d]S
-                             const bigCurveData* E)
+                             bigCurve   E)
 {
     WOLF_ENTER();
     BOOL OK;
     MP_INITIALIZED(bnD, d);
-    MP_INITIALIZED(bnPrime, BnCurveGetPrime(AccessCurveConstants(E)));
+    MP_INITIALIZED(bnPrime, CurveGetPrime(E));
     POINT_CREATE(pS, NULL);
     POINT_CREATE(pR, NULL);
 
     if(S == NULL)
-        S = BnCurveGetG(AccessCurveConstants(E));
+        S = CurveGetG(AccessCurveData(E));
 
     PointToWolf(pS, S);
 
@@ -375,12 +407,12 @@ LIB_EXPORT BOOL BnEccModMult(bigPoint   R,  // OUT: computed point
 // This function does a point multiply of the form R = [d]G + [u]Q
 // return type: BOOL
 //  FALSE       failure in operation; treat as result being point at infinity
-LIB_EXPORT BOOL BnEccModMult2(bigPoint            R,  // OUT: computed point
-                              pointConst          S,  // IN: optional point
-                              bigConst            d,  // IN: scalar for [d]S or [d]G
-                              pointConst          Q,  // IN: second point
-                              bigConst            u,  // IN: second scalar
-                              const bigCurveData* E   // IN: curve
+LIB_EXPORT BOOL BnEccModMult2(bigPoint   R,  // OUT: computed point
+                              pointConst S,  // IN: optional point
+                              bigConst   d,  // IN: scalar for [d]S or [d]G
+                              pointConst Q,  // IN: second point
+                              bigConst   u,  // IN: second scalar
+                              bigCurve   E   // IN: curve
 )
 {
     WOLF_ENTER();
@@ -390,11 +422,11 @@ LIB_EXPORT BOOL BnEccModMult2(bigPoint            R,  // OUT: computed point
     POINT_CREATE(pQ, Q);
     MP_INITIALIZED(bnD, d);
     MP_INITIALIZED(bnU, u);
-    MP_INITIALIZED(bnPrime, BnCurveGetPrime(AccessCurveConstants(E)));
-    MP_INITIALIZED(bnA, BnCurveGet_a(AccessCurveConstants(E)));
+    MP_INITIALIZED(bnPrime, CurveGetPrime(E));
+    MP_INITIALIZED(bnA, CurveGet_a(E));
 
     if(S == NULL)
-        S = BnCurveGetG(AccessCurveConstants(E));
+        S = CurveGetG(AccessCurveData(E));
     PointToWolf(pS, S);
 
     OK = (ecc_mul2add(pS, bnD, pQ, bnU, pR, bnA, bnPrime, NULL) == MP_OKAY);
@@ -415,10 +447,10 @@ LIB_EXPORT BOOL BnEccModMult2(bigPoint            R,  // OUT: computed point
 // This function does addition of two points.
 // return type: BOOL
 //  FALSE       failure in operation; treat as result being point at infinity
-LIB_EXPORT BOOL BnEccAdd(bigPoint            R,  // OUT: computed point
-                         pointConst          S,  // IN: point to multiply by 'd'
-                         pointConst          Q,  // IN: second point
-                         const bigCurveData* E   // IN: curve
+LIB_EXPORT BOOL BnEccAdd(bigPoint   R,  // OUT: computed point
+                         pointConst S,  // IN: point to multiply by 'd'
+                         pointConst Q,  // IN: second point
+                         bigCurve   E   // IN: curve
 )
 {
     WOLF_ENTER();
@@ -427,8 +459,8 @@ LIB_EXPORT BOOL BnEccAdd(bigPoint            R,  // OUT: computed point
     POINT_CREATE(pR, NULL);
     POINT_CREATE(pS, S);
     POINT_CREATE(pQ, Q);
-    MP_INITIALIZED(bnA, BnCurveGet_a(AccessCurveConstants(E)));
-    MP_INITIALIZED(bnMod, BnCurveGetPrime(AccessCurveConstants(E)));
+    MP_INITIALIZED(bnA, CurveGet_a(E));
+    MP_INITIALIZED(bnMod, CurveGetPrime(E));
     //
     OK = (mp_montgomery_setup(bnMod, &mp) == MP_OKAY);
     OK = OK && (ecc_projective_add_point(pS, pQ, pR, bnA, bnMod, mp) == MP_OKAY);
@@ -445,46 +477,6 @@ LIB_EXPORT BOOL BnEccAdd(bigPoint            R,  // OUT: computed point
     return !BnEqualZero(R->z);
 }
 
-//*** BnCurveInitialize()
-// This function initializes the OpenSSL curve information structure. This
-// structure points to the TPM-defined values for the curve, to the context for the
-// number values in the frame, and to the OpenSSL-defined group values.
-//  Return Type: bigCurveData*
-//      NULL        the TPM_ECC_CURVE is not valid or there was a problem in
-//                  in initializing the curve data
-//      non-NULL    points to 'E'
-LIB_EXPORT bigCurveData* BnCurveInitialize(
-    bigCurveData*
-        pDataE,  // IN: our implementation of bigCurveData is a pointer, so this is pointer-to-pointer.
-    TPM_ECC_CURVE curveId  // IN: curve identifier
-)
-{
-    *pDataE = BnGetCurveData(curveId);
-    return pDataE;
-}
-
-//*** BnCurveFree()
-// This function will free the allocated components of the curve and end the
-// frame in which the curve data exists
-LIB_EXPORT void BnCurveFree(bigCurveData* E)
-{
-    // nothing to clean up
-}
-
 #  endif  // TPM_ALG_ECC
-
-#  if CRYPTO_LIB_REPORTING
-
-//** BnGetImplementation()
-// This function reports the underlying library being used for bignum operations.
-void BnGetImplementation(_CRYPTO_IMPL_DESCRIPTION* result)
-{
-    snprintf(result->name, sizeof(result->name), "WolfSSL");
-    snprintf(result->version, sizeof(result->version), "n/a");
-    // TODO: Populate version information based on whatever the WolfSSL
-    // equivalent to opensslv.h is.
-}
-
-#  endif  // CRYPTO_LIB_REPORTING
 
 #endif  // MATH_LIB_WOLF

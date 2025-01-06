@@ -2,6 +2,8 @@
 // This file contains the code for prime validation.
 
 #include "Tpm.h"
+
+#ifndef NO_PRIME_GEN
 #include "CryptPrime_fp.h"
 #include "TpmMath_Util_fp.h"
 
@@ -348,3 +350,4 @@ TPM_RC TpmRsa_GeneratePrimeForRSA(
 }
 
 #endif  // ALG_RSA
+#endif //NO_PRIME_GEN

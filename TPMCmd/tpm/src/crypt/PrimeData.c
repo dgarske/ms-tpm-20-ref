@@ -1,5 +1,6 @@
 #include "Tpm.h"
 
+#ifndef NO_PRIME_GEN
 // This table is the product of all of the primes up to 1000.
 // Checking to see if there is a GCD between a prime candidate
 // and this number will eliminate many prime candidates from
@@ -356,3 +357,4 @@ UINT32 noPrimeFields[3]         = {0};
 UINT32 primesChecked[3]         = {0};
 UINT16 lastSievePrime           = 0;
 #endif
+#endif // NO_PRIME_GEN

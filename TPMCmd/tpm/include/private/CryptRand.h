@@ -18,14 +18,26 @@
 // 2) the block size (the IV size)
 // 3) the symmetric algorithm
 
+#if ALG_AES
 #define DRBG_KEY_SIZE_BITS AES_MAX_KEY_SIZE_BITS
 #define DRBG_IV_SIZE_BITS  (AES_MAX_BLOCK_SIZE * 8)
+#else
+#define DRBG_KEY_SIZE_BITS 128
+#define DRBG_IV_SIZE_BITS  128
+typedef int DRBG_KEY_SCHEDULE;
+#define DRBG_ENCRYPT_SETUP(key, keySizeInBits, schedule) 0
+#define DRBG_ENCRYPT(keySchedule, in, out) 0
+#endif
+
+#if ALG_AES
 #define DRBG_ALGORITHM     TPM_ALG_AES
 
+typedef tpmKeyScheduleAES DRBG_KEY_SCHEDULE;
 #define DRBG_ENCRYPT_SETUP(key, keySizeInBits, schedule) \
-    TpmCryptSetEncryptKeyAES(key, keySizeInBits, schedule)
+  TpmCryptSetEncryptKeyAES(key, keySizeInBits, schedule)
 #define DRBG_ENCRYPT(keySchedule, in, out) \
-    TpmCryptEncryptAES(SWIZZLE(keySchedule, in, out))
+  TpmCryptEncryptAES(SWIZZLE(keySchedule, in, out))
+#endif
 
 #if((DRBG_KEY_SIZE_BITS % RADIX_BITS) != 0) || ((DRBG_IV_SIZE_BITS % RADIX_BITS) != 0)
 #  error "Key size and IV for DRBG must be even multiples of the radix"
@@ -95,6 +107,11 @@ typedef union
 #define SetDrbgTested()   SetTestStateBit(TESTED)
 #define ClearDrbgTested() ClearTestStateBit(TESTED)
 
+#ifdef USE_WOLFSSL_DRBG
+#include <wolfssl/options.h>
+#include <wolfssl/wolfcrypt/random.h>
+#define DRBG_STATE WC_RNG
+#else
 typedef struct
 {
     UINT64    reseedCounter;
@@ -104,6 +121,7 @@ typedef struct
                              // for FIPS compliance of DRBG
 } DRBG_STATE, *pDRBG_STATE;
 #define DRBG_MAGIC ((UINT32)0x47425244)  // "DRBG" backwards so that it displays
+#endif
 
 typedef struct KDF_STATE
 {

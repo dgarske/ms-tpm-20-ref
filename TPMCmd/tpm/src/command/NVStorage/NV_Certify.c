@@ -1,8 +1,9 @@
 #include "Tpm.h"
+
+#if CC_NV_Certify  // Conditional expansion of this file
 #include "Attest_spt_fp.h"
 #include "NV_Certify_fp.h"
 
-#if CC_NV_Certify  // Conditional expansion of this file
 
 /*(See part 3 specification)
 // certify the contents of an NV index or portion of an NV index
